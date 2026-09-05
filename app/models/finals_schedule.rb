@@ -8,7 +8,7 @@
 #  error_message  :text
 #  processed_at   :datetime
 #  stats          :jsonb
-#  status         :integer          default("pending"), not null
+#  status         :integer          default(0), not null
 #  created_at     :datetime         not null
 #  updated_at     :datetime         not null
 #  term_id        :bigint           not null
