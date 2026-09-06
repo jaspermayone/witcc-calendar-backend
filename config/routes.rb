@@ -127,7 +127,9 @@ Rails.application.routes.draw do
       resources :calendar_preferences, only: [ :index, :update ]
       resources :connected_accounts,   only: [ :index, :destroy ]
       resource  :ics_feed,             only: [ :show ]
-      resource  :notifications,        only: [ :show, :update ]
+      resource  :notifications,        only: [ :show, :update ] do
+        patch :university_events
+      end
       resources :friends, only: [ :index, :create, :destroy ] do
         member     { post :accept; post :decline }
         collection { get :requests }

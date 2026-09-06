@@ -707,7 +707,7 @@ class GoogleCalendarService
 
     google_event.recurrence = event_data[:recurrence] if event_data[:recurrence].present?
 
-    if event_data[:reminder_settings].present? && event_data[:reminder_settings].is_a?(Array)
+    if event_data[:reminder_settings].is_a?(Array)
       valid_reminders = event_data[:reminder_settings].select do |reminder|
         reminder.is_a?(Hash) &&
           reminder["method"].present? &&
@@ -716,16 +716,16 @@ class GoogleCalendarService
           [ "email", "popup", "notification" ].include?(reminder["method"])
       end
 
-      if valid_reminders.any?
-        google_event.reminders = Google::Apis::CalendarV3::Event::Reminders.new(
-          use_default: false,
-          overrides:   valid_reminders.map do |reminder|
-            method  = reminder["method"] == "notification" ? "popup" : reminder["method"]
-            minutes = convert_time_to_minutes(reminder["time"], reminder["type"])
-            Google::Apis::CalendarV3::EventReminder.new(reminder_method: method, minutes: minutes)
-          end
-        )
-      end
+      # An empty list means "no reminders". It must still send use_default: false,
+      # otherwise Google applies the calendar default reminders.
+      google_event.reminders = Google::Apis::CalendarV3::Event::Reminders.new(
+        use_default: false,
+        overrides:   valid_reminders.map do |reminder|
+          method  = reminder["method"] == "notification" ? "popup" : reminder["method"]
+          minutes = convert_time_to_minutes(reminder["time"], reminder["type"])
+          Google::Apis::CalendarV3::EventReminder.new(reminder_method: method, minutes: minutes)
+        end
+      )
     end
 
     google_event.visibility = event_data[:visibility] if event_data[:visibility].present?
