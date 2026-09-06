@@ -12,6 +12,30 @@ class MeetingTimesIngestService < ApplicationService
     super()
   end
 
+  # Banner's getFacultyMeetingTimes payload uses its own key names. Reshape it
+  # into the keys ingest_one reads, so every caller that pulls from LeopardWeb
+  # feeds this service the same shape.
+  def self.normalize_leopard_web(meeting_times)
+    Array(meeting_times).map do |lw_mt|
+      {
+        "startDate"           => lw_mt["startDate"],
+        "endDate"             => lw_mt["endDate"],
+        "beginTime"           => lw_mt["startTime"],
+        "endTime"             => lw_mt["endTime"],
+        "building"            => lw_mt["building"],
+        "buildingDescription" => lw_mt["building_description"],
+        "room"                => lw_mt["room"],
+        "monday"              => lw_mt.dig("days", "monday"),
+        "tuesday"             => lw_mt.dig("days", "tuesday"),
+        "wednesday"           => lw_mt.dig("days", "wednesday"),
+        "thursday"            => lw_mt.dig("days", "thursday"),
+        "friday"              => lw_mt.dig("days", "friday"),
+        "saturday"            => lw_mt.dig("days", "saturday"),
+        "sunday"              => lw_mt.dig("days", "sunday")
+      }
+    end
+  end
+
   # Upserts meeting times in place and returns the IDs of every row that was
   # created or updated, so callers can prune stale rows without touching the rest.
   def call

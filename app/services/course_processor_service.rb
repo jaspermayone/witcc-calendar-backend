@@ -56,24 +56,7 @@ class CourseProcessorService < ApplicationService
         # with no timezone ambiguity. Fall back to parsing raw Banner calendar timestamps only
         # if structured data is unavailable.
         meeting_times = if detailed_course_info[:meeting_times].present?
-          detailed_course_info[:meeting_times].map do |lw_mt|
-            {
-              "startDate"           => lw_mt["startDate"],
-              "endDate"             => lw_mt["endDate"],
-              "beginTime"           => lw_mt["startTime"],
-              "endTime"             => lw_mt["endTime"],
-              "building"            => lw_mt["building"],
-              "buildingDescription" => lw_mt["building_description"],
-              "room"                => lw_mt["room"],
-              "monday"              => lw_mt.dig("days", "monday"),
-              "tuesday"             => lw_mt.dig("days", "tuesday"),
-              "wednesday"           => lw_mt.dig("days", "wednesday"),
-              "thursday"            => lw_mt.dig("days", "thursday"),
-              "friday"              => lw_mt.dig("days", "friday"),
-              "saturday"            => lw_mt.dig("days", "saturday"),
-              "sunday"              => lw_mt.dig("days", "sunday")
-            }
-          end
+          MeetingTimesIngestService.normalize_leopard_web(detailed_course_info[:meeting_times])
         else
           time_groups = course_meetings.group_by do |meeting|
             start_value = meeting[:start] || meeting["start"]
