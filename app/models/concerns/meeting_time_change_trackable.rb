@@ -20,14 +20,9 @@ module MeetingTimeChangeTrackable
     after_destroy :mark_enrolled_users_for_sync
   end
 
-  private
-
-  def saved_change_to_relevant_attributes?
-    # Track changes to any attributes that affect calendar display
-    relevant_attrs = %w[begin_time end_time day_of_week start_date end_date room_id]
-    relevant_attrs.any? { |attr| saved_change_to_attribute?(attr) }
-  end
-
+  # Rooms live in course_meeting_time_rooms, not in a column on this row, so a
+  # room change saves nothing here and the callback above never fires.
+  # Course::MeetingTimeRoom calls this directly when a room is linked or unlinked.
   def mark_enrolled_users_for_sync
     # Skip expensive JOIN query when no one is enrolled in this course.
     # Within a bulk operation wrapped with with_enrollment_cache, the EXISTS check
@@ -53,5 +48,13 @@ module MeetingTimeChangeTrackable
                    .pluck(:id)
 
     User.where(id: user_ids).update_all(calendar_needs_sync: true) if user_ids.any? # rubocop:disable Rails/SkipsModelValidations
+  end
+
+  private
+
+  def saved_change_to_relevant_attributes?
+    # Track changes to any attributes that affect calendar display
+    relevant_attrs = %w[begin_time end_time day_of_week start_date end_date]
+    relevant_attrs.any? { |attr| saved_change_to_attribute?(attr) }
   end
 end

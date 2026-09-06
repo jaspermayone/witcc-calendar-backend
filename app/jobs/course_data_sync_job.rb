@@ -33,14 +33,16 @@ class CourseDataSyncJob < ApplicationJob
     synced_count = 0
     error_count  = 0
 
-    term.courses.includes(:meeting_times, meeting_times: { rooms: :building }).find_each(batch_size: 50) do |course|
-      if sync_course_data(course, term_uid)
-        synced_count += 1
+    MeetingTimeChangeTrackable.with_enrollment_cache do
+      term.courses.includes(:meeting_times, meeting_times: { rooms: :building }).find_each(batch_size: 50) do |course|
+        if sync_course_data(course, term_uid)
+          synced_count += 1
+        end
+        sleep 0.1
+      rescue => e
+        error_count += 1
+        Rails.logger.error "[CourseDataSyncJob] Failed to sync course #{course.crn}: #{e.message}"
       end
-      sleep 0.1
-    rescue => e
-      error_count += 1
-      Rails.logger.error "[CourseDataSyncJob] Failed to sync course #{course.crn}: #{e.message}"
     end
 
     Rails.logger.info "[CourseDataSyncJob] Term #{term.name} complete — #{synced_count} synced, #{error_count} errors"
@@ -50,13 +52,56 @@ class CourseDataSyncJob < ApplicationJob
     fresh_data = fetch_fresh_course_data(course.crn, term_uid)
     return false unless fresh_data
 
-    if course_data_changed?(course, fresh_data) || meeting_times_need_update?(course)
-      update_course_from_fresh_data(course, fresh_data)
-      Rails.logger.info "[CourseDataSyncJob] Updated course #{course.crn}"
-      return true
+    course_changed = if course_data_changed?(course, fresh_data)
+                       update_course_from_fresh_data(course, fresh_data)
+                       true
+    else
+                       update_enrollment_counts(course, fresh_data)
     end
 
-    update_enrollment_counts(course, fresh_data)
+    meeting_times_changed = sync_meeting_times(course, fresh_data)
+
+    Rails.logger.info "[CourseDataSyncJob] Updated course #{course.crn}" if course_changed || meeting_times_changed
+
+    course_changed || meeting_times_changed
+  end
+
+  # The registrar moves sections between rooms after registration opens, and the
+  # extension only posts a schedule when the student's course list changes. So
+  # this job is the only thing that notices a room or time change, and it has to
+  # write the new meeting times itself.
+  def sync_meeting_times(course, fresh_data)
+    raw = fresh_data[:meeting_times]
+    # An empty payload means Banner told us nothing, not that the section stopped
+    # meeting. Pruning on it would delete every meeting time and strand the
+    # Google Calendar events that point at them.
+    return false if raw.blank?
+
+    before = meeting_times_fingerprint(course)
+
+    touched_ids = MeetingTimesIngestService.call(
+      course: course,
+      raw_meeting_times: MeetingTimesIngestService.normalize_leopard_web(raw)
+    )
+    return false if touched_ids.empty?
+
+    course.meeting_times.where.not(id: touched_ids).destroy_all
+    course.meeting_times.reset
+
+    before != meeting_times_fingerprint(course)
+  end
+
+  def meeting_times_fingerprint(course)
+    course.meeting_times.includes(rooms: :building).map { |mt|
+      [
+        mt.day_of_week,
+        mt.begin_time,
+        mt.end_time,
+        mt.start_date,
+        mt.end_date,
+        mt.rooms.map { |r| [ r.building.abbreviation, r.number ] }.sort
+      ]
+    }.sort_by(&:to_s)
   end
 
   def fetch_fresh_course_data(crn, term_uid)
@@ -82,12 +127,6 @@ class CourseDataSyncJob < ApplicationJob
       course.section_number != fresh_section_number,
       fresh_schedule_type && course.schedule_type != fresh_schedule_type
     ].any?
-  end
-
-  def meeting_times_need_update?(course)
-    course.meeting_times.any? do |mt|
-      mt.room&.number.to_i.zero? || mt.room&.building&.abbreviation == "TBD"
-    end
   end
 
   def update_course_from_fresh_data(course, fresh_data)

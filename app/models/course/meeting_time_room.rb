@@ -25,4 +25,16 @@ class Course::MeetingTimeRoom < ApplicationRecord
 
   belongs_to :meeting_time, class_name: "Course::MeetingTime"
   belongs_to :room
+
+  # A room change writes only to this join table, so the meeting time row itself
+  # reports no change and its own callback stays quiet. Mark the enrolled users
+  # here, or a section that moves rooms keeps the old location in Google Calendar.
+  after_create :mark_enrolled_users_for_sync
+  after_destroy :mark_enrolled_users_for_sync
+
+  private
+
+  def mark_enrolled_users_for_sync
+    meeting_time&.mark_enrolled_users_for_sync
+  end
 end
