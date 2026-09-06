@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<%= form_authenticity_token %>">
-  <title><%= content_for(:title) { "Dashboard" } %> — WIT Calendar</title>
+  <title><%= browser_title("Dashboard") %></title>
   <%= csrf_meta_tags %>
   <%= csp_meta_tag %>
   <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
@@ -75,7 +75,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
           </div>
-          <span class="text-sm font-bold text-on-surface"><%= content_for(:title) { "Dashboard" } %></span>
+          <span class="text-sm font-bold text-on-surface"><%= page_title("Dashboard") %></span>
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-on-surface-variant"><%= current_user.first_name %></span>

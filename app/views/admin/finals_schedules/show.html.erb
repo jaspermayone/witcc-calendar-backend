@@ -1,3 +1,5 @@
+<% content_for :title, "Finals Schedule: #{@finals_schedule.term.name}" %>
+
 <%= turbo_frame_tag "finals_schedule_#{@finals_schedule.id}",
     data: (@finals_schedule.pending? || @finals_schedule.processing?) ?
       { controller: "auto-refresh", "auto-refresh-interval-value": 3000 } : {} do %>
