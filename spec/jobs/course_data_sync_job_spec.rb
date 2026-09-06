@@ -3,6 +3,8 @@
 require "rails_helper"
 
 RSpec.describe CourseDataSyncJob do
+  include ActiveSupport::Testing::TimeHelpers
+
   let(:term) { Term.create!(uid: 202710, season: :fall, year: 2026) }
   let(:course) do
     Course.create!(
@@ -118,6 +120,39 @@ RSpec.describe CourseDataSyncJob do
       )
 
       expect(described_class.new.send(:default_term_uids)).not_to include(old_term.uid)
+    end
+
+    # Term.current picks by calendar month, not by whether classes are still
+    # running, so it advances to the next term before the current one ends.
+    # Term.current_and_future alone drops a still-running term twice a year.
+    # These two cases are why default_term_uids unions in Term.active.
+    context "when a running term overlaps the next one" do
+      let!(:summer_2026) do
+        Term.create!(uid: 202630, season: :summer, year: 2026,
+                     start_date: Date.new(2026, 5, 18), end_date: Date.new(2026, 8, 20))
+      end
+      # The outer term is Fall 2026 (202710); it just needs real dates here.
+      let!(:fall_2026) do
+        term.tap { |t| t.update!(start_date: Date.new(2026, 9, 8), end_date: Date.new(2026, 12, 20)) }
+      end
+      let!(:spring_2027) do
+        Term.create!(uid: 202720, season: :spring, year: 2027,
+                     start_date: Date.new(2027, 1, 12), end_date: Date.new(2027, 5, 5))
+      end
+
+      it "keeps the fall term in December, after the heuristic jumps to spring" do
+        travel_to(Date.new(2026, 12, 18)) do
+          expect(Term.current_and_future.pluck(:uid)).not_to include(fall_2026.uid)
+          expect(described_class.new.send(:default_term_uids)).to include(fall_2026.uid)
+        end
+      end
+
+      it "keeps the summer term in August, while it is still in session" do
+        travel_to(Date.new(2026, 8, 1)) do
+          expect(Term.current_and_future.pluck(:uid)).not_to include(summer_2026.uid)
+          expect(described_class.new.send(:default_term_uids)).to include(summer_2026.uid)
+        end
+      end
     end
   end
 
