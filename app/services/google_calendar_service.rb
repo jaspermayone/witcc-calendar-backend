@@ -178,6 +178,24 @@ class GoogleCalendarService
     stats
   end
 
+  # Delete tracked events from Google Calendar and from the database.
+  # Used for events that the reconcile pass in update_calendar_events keeps,
+  # such as past university events the user no longer wants.
+  def delete_events(db_events)
+    db_events = Array(db_events)
+    return 0 if db_events.empty?
+
+    google_calendar = GoogleCalendar.for_user(user).first
+    return 0 unless google_calendar
+
+    service = user_calendar_service
+    with_batch_throttling(db_events) do |db_event|
+      delete_event_from_calendar(service, google_calendar, db_event)
+    end
+
+    db_events.size
+  end
+
   def list_calendars
     service = service_account_calendar_service
     with_rate_limit_handling { service.list_calendar_lists }
