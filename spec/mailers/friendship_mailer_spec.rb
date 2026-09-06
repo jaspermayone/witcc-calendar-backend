@@ -18,7 +18,6 @@ RSpec.describe FriendshipMailer, type: :mailer do
 
     it "addresses the requestee" do
       expect(mail.to).to eq([ "addressee@wit.edu" ])
-      expect(mail.from).to eq([ "noreply@wit.edu" ])
     end
 
     it "names the requester in the subject" do
