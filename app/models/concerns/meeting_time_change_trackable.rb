@@ -35,15 +35,16 @@ module MeetingTimeChangeTrackable
     end
     return unless has_enrollments
 
-    # Mark all users enrolled in this course as needing a calendar sync
-    # Only mark users who have Google OAuth credentials with a course calendar ID set
+    # Mark all users enrolled in this course as needing a calendar sync.
+    # Select the same way NightlyCalendarSyncJob does, by the google_calendars
+    # association. The old predicate looked for a course_calendar_id key in the
+    # OAuth credential metadata. Nothing writes that key, so it matched no one
+    # and no data change ever marked a calendar.
     # Using update_all for performance with bulk updates
     # First get distinct user IDs, then update them (Rails 8.2 compatibility)
     user_ids = User.joins(:enrollments)
-                   .joins(:oauth_credentials)
+                   .joins(:google_calendars)
                    .where(enrollments: { course_id: course_id })
-                   .where(oauth_credentials: { provider: "google" })
-                   .where("oauth_credentials.metadata->>'course_calendar_id' IS NOT NULL")
                    .distinct
                    .pluck(:id)
 

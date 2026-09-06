@@ -5,10 +5,12 @@ class CourseDataSyncJob < ApplicationJob
 
   queue_as :low
 
-  limits_concurrency to: 1, key: -> { "course_data_sync" }
+  # SolidQueue calls this key with the job's arguments, so it has to accept them.
+  # A bare -> {} raises ArgumentError on any enqueue that passes term_uids.
+  limits_concurrency to: 1, key: ->(*) { "course_data_sync" }
 
   def perform(term_uids: nil)
-    term_uids ||= Term.active_uids.uniq
+    term_uids ||= default_term_uids
 
     return if term_uids.empty?
 
@@ -20,6 +22,14 @@ class CourseDataSyncJob < ApplicationJob
   end
 
   private
+
+  # Rooms and times only move for a term that is running or has not started yet.
+  # Term.active_uids asks Banner, which lists every term back to 2014. That is
+  # about 39,500 courses and 118,000 Banner requests a night, nearly all of them
+  # for terms that ended years ago.
+  def default_term_uids
+    (Term.active.pluck(:uid) + Term.current_and_future.pluck(:uid)).uniq
+  end
 
   def sync_term_courses(term_uid)
     term = Term.find_by(uid: term_uid)

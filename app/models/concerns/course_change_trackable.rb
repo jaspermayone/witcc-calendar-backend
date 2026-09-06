@@ -40,11 +40,13 @@ module CourseChangeTrackable
     end
     return unless has_enrollments
 
+    # Select the same way NightlyCalendarSyncJob does, by the google_calendars
+    # association. The old predicate looked for a course_calendar_id key in the
+    # OAuth credential metadata. Nothing writes that key, so it matched no one
+    # and no data change ever marked a calendar.
     user_ids = User.joins(:enrollments)
-                   .joins(:oauth_credentials)
+                   .joins(:google_calendars)
                    .where(enrollments: { course_id: id })
-                   .where(oauth_credentials: { provider: "google" })
-                   .where("oauth_credentials.metadata->>'course_calendar_id' IS NOT NULL")
                    .distinct
                    .pluck(:id)
 
