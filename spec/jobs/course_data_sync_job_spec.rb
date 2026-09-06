@@ -102,14 +102,46 @@ RSpec.describe CourseDataSyncJob do
     expect(linked_rooms).to eq([ [ "IRAH", "112" ] ])
   end
 
+  describe "term selection" do
+    it "syncs the running and upcoming terms, not every term Banner lists" do
+      allow(LeopardWebService).to receive(:get_active_terms).and_raise("Banner should not be asked")
+      allow(LeopardWebService).to receive(:get_class_details).and_return(nil)
+      job = described_class.new
+
+      expect(job.send(:default_term_uids)).to include(term.uid)
+    end
+
+    it "leaves out a term that has already ended" do
+      old_term = Term.create!(
+        uid: 201710, season: :fall, year: 2016,
+        start_date: Date.new(2016, 9, 1), end_date: Date.new(2016, 12, 20)
+      )
+
+      expect(described_class.new.send(:default_term_uids)).not_to include(old_term.uid)
+    end
+  end
+
+  describe "concurrency key" do
+    it "accepts the job arguments so a scoped run can be enqueued" do
+      expect { described_class.new(term_uids: [ 202710 ]).concurrency_key }.not_to raise_error
+    end
+
+    it "stays a single key regardless of the arguments" do
+      expect(described_class.new(term_uids: [ 202710 ]).concurrency_key)
+        .to eq(described_class.new.concurrency_key)
+    end
+  end
+
   context "when a student with a Google calendar is enrolled" do
     let(:user) { User.create!(email: "student@wit.edu", password: "password123") }
-    let!(:credential) do
+    let(:credential) do
       user.oauth_credentials.create!(
-        provider: "google", uid: "google-uid", email: user.email, access_token: "token",
-        metadata: { "course_calendar_id" => "cal_123" }
+        provider: "google", uid: "google-uid", email: user.email, access_token: "token"
       )
     end
+    # A user counts as having a calendar through this association, the same way
+    # NightlyCalendarSyncJob selects them.
+    let!(:google_calendar) { credential.create_google_calendar!(google_calendar_id: "cal_123") }
     let!(:enrollment) { Enrollment.create!(user: user, course: course, term: term) }
 
     before { user.update!(calendar_needs_sync: false) }
