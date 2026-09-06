@@ -4,7 +4,7 @@
 # Table name: users
 #
 #  id                           :bigint           not null, primary key
-#  access_level                 :integer          default("user"), not null
+#  access_level                 :integer          default(0), not null
 #  calendar_needs_sync          :boolean          default(FALSE), not null
 #  calendar_token               :string
 #  confirmation_sent_at         :datetime
