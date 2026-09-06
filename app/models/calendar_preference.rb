@@ -36,11 +36,14 @@ class CalendarPreference < ApplicationRecord
 
   UNI_CAL_CATEGORIES = UniversityCalendarEvent::CATEGORIES
 
-  enum :scope, { global: 0, event_type: 1, uni_cal_category: 2 }, prefix: true
+  enum :scope, { global: 0, event_type: 1, uni_cal_category: 2, uni_cal_global: 3 }, prefix: true
 
   validates :scope, presence: true
+  # The unique index does not catch a repeat of a scope that has no event_type,
+  # because Postgres treats each NULL as distinct.
+  validates :scope, uniqueness: { scope: [ :user_id, :event_type ] }
   validates :event_type, presence: true, if: -> { scope_event_type? || scope_uni_cal_category? }
-  validates :event_type, absence: true, if: :scope_global?
+  validates :event_type, absence: true, if: -> { scope_global? || scope_uni_cal_global? }
   validates :event_type, inclusion: { in: UNI_CAL_CATEGORIES }, if: :scope_uni_cal_category?
   validates :title_template, length: { maximum: 500 }, allow_blank: true
   validates :description_template, length: { maximum: 2000 }, allow_blank: true
@@ -54,6 +57,7 @@ class CalendarPreference < ApplicationRecord
   scope :for_event_type,       ->(type) { where(scope: :event_type, event_type: type) }
   scope :for_uni_cal_category, ->(cat) { where(scope: :uni_cal_category, event_type: cat) }
   scope :global_scope,         -> { where(scope: :global) }
+  scope :uni_cal_global_scope, -> { where(scope: :uni_cal_global) }
 
   private
 
